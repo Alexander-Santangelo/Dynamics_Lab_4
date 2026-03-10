@@ -51,7 +51,7 @@ N = momVec(3);
 
 % Block 1 (Translational Kinematics)
 
-pdotE = R_e_to_b * [uE;vE;wE]; 
+pdotE = R_e_to_b' * [uE;vE;wE]; 
 
 % Block 2 (Rotational Kinematics)
 
@@ -61,7 +61,7 @@ o_vector = [1,sind(phi)*tand(theta),cosd(phi)*tand(theta);
 
 % Block 3 (Translational Dynamics)
 
-vdotEB = [r*vE-q*wE;p*wE-r*uE;p*uE-p*vE] + g*[-sind(theta);cosd(theta)*sind(phi);cosd(theta)*cosd(phi)] + (1/m)*[X;Y;Z]; 
+vdotEB = [r*vE-q*wE;p*wE-r*uE;p*uE-p*vE] + g*[-sind(theta);cosd(theta)*sind(phi);cosd(theta)*cosd(phi)] + (1/m)*[X;Y;Z+Zc]; 
 
 % Block 4 (Roational Dynamics)
 
