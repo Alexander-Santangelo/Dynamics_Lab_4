@@ -1,0 +1,141 @@
+clear;
+clc;
+close all;
+
+
+tspan = [0 10];
+I = [5.8*10^-5, 0, 0; 0, 7.2*10^-5, 0; 0, 0, 1*10^-4];
+%x, y, z, theta, phi, si, u, v, w, p, q, r
+var0 = [0; 0; 0; 5; 0; 0; 0; 0; 0; 0; 0; 0];
+g = 9.81; 
+m = 0.068; 
+d = 0.06; 
+km = 0.0024; 
+nu = 1*10^-3; 
+mu = 1*10^-6;
+motor_forces = [-d/(sqrt(2)*I(1, 1)); -d/(sqrt(2)*I(1, 1)); d/(sqrt(2)*I(1, 1)); d/(sqrt(2)*I(1, 1))];
+[t,y] = ode45(@(t, var) QuadrotorEOMwithRateFeedback(t, var, g, m, I, d, km, nu, mu), tspan, var0);
+
+figure();
+plot3(y(:, 1), y(:, 2), y(:, 3))
+grid("on")
+xlabel("North (m)")
+ylabel("East (m)")
+zlabel("Down (m)")
+
+
+function var_dot = QuadrotorEOM(t, var, g, m, I, d, km, nu, mu, motor_forces)
+    % t is time
+    % var is the 12 x 1 aircraft state vector
+    % g is the acceleration due to gravity
+    % m is mass
+    % I is the inertia matrix
+    % d, km, nu, and mu are the remaining quadrotor parameters
+    % motor_forces = [f1; f2; f3; f4] is the 4 x 1 vector of motor forces,
+    % var_dot is the 12 x 1 derivative of the state vector
+    forces = -nu * sqrt(var(7)^2+var(8)^2+var(9)^2) * [var(7); var(8); var(9)];
+    moments = -mu * sqrt(var(10)^2+var(11)^2+var(12)^2) * [var(10); var(11); var(12)];
+    controls = [-1, -1, -1, -1;
+        -d/sqrt(2), -d/sqrt(2), d/sqrt(2), d/sqrt(2);
+        d/sqrt(2), -d/sqrt(2), -d/sqrt(2), d/sqrt(2);
+        km, -km, km, -km] * motor_forces;
+
+    var_dot(1) = var(7) * (cos(var(5))*cos(var(6))) + var(8) * (sin(var(4))*sin(var(5))*cos(var(6)) - cos(var(4))*sin(var(6)) ) + var(9)*(cos(var(4))*sin(var(5))*cos(var(6)) + sin(var(4))*sin(var(6)));
+    var_dot(2) = var(7) * (cos(var(5))*sin(var(6))) + var(8) * (sin(var(4))*sin(var(5))*sin(var(6)) + cos(var(4))*cos(var(6)) ) + var(9)*(cos(var(4))*sin(var(5))*sin(var(6)) - sin(var(4))*cos(var(6)));
+    var_dot(3) = var(7) * (-sin(var(5))) + var(8) * (sin(var(4))*cos(var(5))) + var(9)*(cos(var(4))*cos(var(5)));
+
+    var_dot(4) = var(10) + var(11)* (sin(var(4)) * tan(var(5))) + var(12) * (cos(var(4)) * tan(var(5)));
+    var_dot(5) = var(11)*cos(var(4)) + var(12)*-sin(var(4));
+    var_dot(6) = var(11)* (sin(var(4)) * sec(var(5))) + var(12)*(cos(var(4)) * sec(var(5)));
+
+    var_dot(7) = (var(12) * var(8) - var(11) * var(9)) + g * -sin(var(5)) + (1/m) * forces(1);
+    var_dot(8) = (var(10) * var(9) - var(12) * var(7)) + g * cos(var(5))*sin(var(4)) + (1/m) * forces(2);
+    var_dot(9) = (var(11) * var(7) - var(10) * var(8)) + g * cos(var(5))*cos(var(4)) + (1/m) * forces(3) + (1/m) * controls(1); 
+
+    var_dot(10) = ((I(2, 2)-I(3, 3))/(I(1, 1))) * var(11)*var(12) + (1/I(1, 1)) * moments(1) + (1/I(1, 1)) * controls(2);
+    var_dot(11) = ((I(3, 3)-I(1, 1))/(I(2, 2))) * var(10)*var(12) + (1/I(2, 2)) * moments(2) + (1/I(2, 2)) * controls(3);
+    var_dot(12) = ((I(1, 1)-I(2, 2))/(I(3, 3))) * var(10)*var(11) + (1/I(3, 3)) * moments(3) + (1/I(3, 3)) * controls(4);
+    var_dot = var_dot';
+end
+
+function var_dot = QuadrotorEOM_Linearized(t, var, g, m, I, deltaFc, deltaGc)
+    % Var(x, y, z, theta, phi, si, u, v, w, p, q, r)
+    % A Matrices
+    A_Q_long = [0, 1, 0, 0;
+                 0, 0, -g, 0;
+                 0, 0, 0, 1;
+                 0,  0, 0, 0];
+    A_Q_lat = [0, 1, 0, 0;
+                 0, 0, g, 0;
+                 0, 0, 0, 1;
+                 0,  0, 0, 0];
+    A_Q_vert = [0, 1;
+                0, 1];
+    A_Q_spin = [0, 1;
+                0, 1];
+
+    % B Matrices
+    B_Q_long = [0;
+                0;
+                0;
+                1/I(2, 2)];
+    B_Q_lat = [0;
+                0;
+                0;
+                1/I(1, 1)];
+    B_Q_vert = [0;
+                1/m];
+    B_Q_spin = [0;
+                1/I(3, 3)];
+
+    long = A_Q_long .* [var(1); var(7); var(4); var(11)] + B_Q_long * deltaGc(2);
+    lat = A_Q_lat .* [var(2); var(8); var(5); var(10)] + B_Q_lat * deltaGc(1);
+    vert = A_Q_vert .* [var(3); var(9)] + B_Q_vert * deltaFc(3);
+    spin = A_Q_spin .* [var(6); var(12)] + B_Q_spin * deltaGc(3);
+
+    var_dot = [long(1);
+               lat(1);
+               vert(1);
+               long(3);
+               lat(3);
+               spin(1);
+               long(2);
+               lat(2);
+               vert(2);
+               lat(4);
+               long(4);
+               spin(2)];
+end
+
+function [Fc, Gc] = RotationDerivativeFeedback(var, m, g)
+
+p = var(10);
+q = var(11);
+r = var(12);
+
+Fc = [0;
+      0;
+      -m*g];
+
+Gc = [-.004*p;
+      -.004*q;
+      -.004*r];
+end
+
+function motor_forces = ComputeMotorForces(Fc, Gc, d, km)
+    A =  [-1, -1, -1, -1;
+          -d/sqrt(2), -d/sqrt(2), d/sqrt(2), d/sqrt(2);
+           d/sqrt(2), -d/sqrt(2), -d/sqrt(2), d/sqrt(2);
+           km, -km, km, -km];
+    b = [Fc(3); 
+        Gc(1); 
+        Gc(2); 
+        Gc(3)];
+    motor_forces = (b \ A)';
+end
+
+function var_dot = QuadrotorEOMwithRateFeedback(t, var, g, m, I, d, km, nu, mu)
+    [Fc, Gc] = RotationDerivativeFeedback(var, m, g);
+    motor_forces = ComputeMotorForces(Fc, Gc, d, km);
+    var_dot = QuadrotorEOM(t, var, g, m, I, d, km, nu, mu, motor_forces);
+end
