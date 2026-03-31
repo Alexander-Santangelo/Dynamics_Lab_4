@@ -5,23 +5,36 @@ close all;
 
 tspan = [0 10];
 I = [5.8*10^-5, 0, 0; 0, 7.2*10^-5, 0; 0, 0, 1*10^-4];
-%x, y, z, theta, phi, si, u, v, w, p, q, r
-var0 = [0; 0; 0; 5; 0; 0; 0; 0; 0; 0; 0; 0];
+%       x, y, z, thta, phi, si, u, v, w,   p, q, r
+var0 = [0; 0; 0;    0; 0; 0;    0; 0; 0;    0; 0; 0];
 g = 9.81; 
 m = 0.068; 
 d = 0.06; 
 km = 0.0024; 
 nu = 1*10^-3; 
 mu = 1*10^-6;
-motor_forces = [-d/(sqrt(2)*I(1, 1)); -d/(sqrt(2)*I(1, 1)); d/(sqrt(2)*I(1, 1)); d/(sqrt(2)*I(1, 1))];
+%motor_forces = [-d/(sqrt(2)*I(1, 1)); -d/(sqrt(2)*I(1, 1)); d/(sqrt(2)*I(1, 1)); d/(sqrt(2)*I(1, 1))];
+motor_forces = [m*g/4; m*g/4; m*g/4; m*g/4];
 [t,y] = ode45(@(t, var) QuadrotorEOMwithRateFeedback(t, var, g, m, I, d, km, nu, mu), tspan, var0);
+[t2,y2] = ode45(@(t, var) QuadrotorEOM(t, var, g, m, I, d, km, nu, mu, motor_forces), tspan, var0);
 
 figure();
+xlim([-10, 10]);
+ylim([-10, 10]);
+zlim([-10, 10]);
 plot3(y(:, 1), y(:, 2), y(:, 3))
 grid("on")
 xlabel("North (m)")
 ylabel("East (m)")
 zlabel("Down (m)")
+
+hold on;
+xlim([-10, 10]);
+ylim([-10, 10]);
+zlim([-10, 10]);
+plot3(y2(:, 1), y2(:, 2), y2(:, 3))
+legend('With Rate Feedback', 'Without Rate Feedback');
+title('Quadrotor Trajectories');
 
 
 function var_dot = QuadrotorEOM(t, var, g, m, I, d, km, nu, mu, motor_forces)
@@ -131,7 +144,7 @@ function motor_forces = ComputeMotorForces(Fc, Gc, d, km)
         Gc(1); 
         Gc(2); 
         Gc(3)];
-    motor_forces = (b \ A)';
+    motor_forces = A\b;
 end
 
 function var_dot = QuadrotorEOMwithRateFeedback(t, var, g, m, I, d, km, nu, mu)
