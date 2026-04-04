@@ -1,0 +1,87 @@
+% USE THIS TO CALL
+tspan = [0 10];
+I = [5.8*10^-5, 0, 0; 0, 7.2*10^-5, 0; 0, 0, 1*10^-4];
+%       x, y, z,  phi, theta, si,     u, v, w,    p, q, r
+var0 = [0; 0; 0;   5*pi/180;   0;   0;       0; 0; 0;    0; 0; 0];
+g = 9.81; 
+m = 0.068; 
+d = 0.06; 
+km = 0.0024; 
+nu = 1*10^-3; 
+mu = 1*10^-6;
+
+% Call to ODE45
+[t,y] = ode45(@(t, var) UpdatedQuadrotorEOM(t, var, g, m, I, nu, mu), tspan, var0);
+
+% Create feedback vector over time
+for i = 1:length(t)
+    [Fc_temp, Gc_temp] = RotationDerivativeFeedback(y(i,:), m, g);
+    Fc(:,i) = Fc_temp(:);
+    Gc(:,i) = Gc_temp(:);
+end
+
+u_feedback = [Fc(3,:); Gc(1,:); Gc(2,:); Gc(3,:)];
+
+% Call to plot
+hold on;
+
+PlotAircraftSim(t, y, u_feedback, [1, 2, 3, 4, 5, 6], 'r')
+
+hold off;
+
+
+
+
+
+
+% FUCNTION HERE, INNER LOOP BELOW
+
+%% INNER LOOP GAIN FEEDBACK FUNCTION 
+
+function [Fc, Gc] = InnerLoopFeedback(var)
+    phi = var(4); theta = var(5);
+    p = var(10); q = var(11); r = var(12);
+  
+    Mc = -(0.000864 * q + 0.00144 * theta);
+    Lc = -(0.000696 * p + 0.00116 * phi);
+    Nc = -0.004*r;
+    Zc = -0.068*9.81;
+
+    Fc = [0; 0; Zc];
+    Gc = [Lc; Mc; Nc];
+    
+end
+
+%% UPDATED EOM TO INCLUDE INNER LOOP FEEDBACK FOR CHOSEN GAINS
+
+function var_dot = UpdatedQuadrotorEOM(t, var, g, m, I, nu, mu)
+    % t is time
+    % var is the 12 x 1 aircraft state vector
+    % g is the acceleration due to gravity
+    % m is mass
+    % I is the inertia matrix
+    % d, km, nu, and mu are the remaining quadrotor parameters
+    % motor_forces = [f1; f2; f3; f4] is the 4 x 1 vector of motor forces,
+    % var_dot is the 12 x 1 derivative of the state vector
+    forces = -nu * sqrt(var(7)^2+var(8)^2+var(9)^2) * [var(7); var(8); var(9)];
+    moments = -mu * sqrt(var(10)^2+var(11)^2+var(12)^2) * [var(10); var(11); var(12)];
+    [Fc, Gc] = InnerLoopFeedback(var);
+    Lc = Gc(1); Mc = Gc(2); Nc = Gc(3); Zc = Fc(3);
+
+    var_dot(1) = var(7) * (cos(var(5))*cos(var(6))) + var(8) * (sin(var(4))*sin(var(5))*cos(var(6)) - cos(var(4))*sin(var(6)) ) + var(9)*(cos(var(4))*sin(var(5))*cos(var(6)) + sin(var(4))*sin(var(6)));
+    var_dot(2) = var(7) * (cos(var(5))*sin(var(6))) + var(8) * (sin(var(4))*sin(var(5))*sin(var(6)) + cos(var(4))*cos(var(6)) ) + var(9)*(cos(var(4))*sin(var(5))*sin(var(6)) - sin(var(4))*cos(var(6)));
+    var_dot(3) = var(7) * (-sin(var(5))) + var(8) * (sin(var(4))*cos(var(5))) + var(9)*(cos(var(4))*cos(var(5)));
+
+    var_dot(4) = var(10) + var(11)* (sin(var(4)) * tan(var(5))) + var(12) * (cos(var(4)) * tan(var(5)));
+    var_dot(5) = var(11)*cos(var(4)) + var(12)*-sin(var(4));
+    var_dot(6) = var(11)* (sin(var(4)) * sec(var(5))) + var(12)*(cos(var(4)) * sec(var(5)));
+
+    var_dot(7) = (var(12) * var(8) - var(11) * var(9)) + g * -sin(var(5)) + (1/m) * forces(1);
+    var_dot(8) = (var(10) * var(9) - var(12) * var(7)) + g * cos(var(5))*sin(var(4)) + (1/m) * forces(2);
+    var_dot(9) = (var(11) * var(7) - var(10) * var(8)) + g * cos(var(5))*cos(var(4)) + (1/m) * forces(3) + (1/m) * Zc; 
+
+    var_dot(10) = ((I(2, 2)-I(3, 3))/(I(1, 1))) * var(11)*var(12) + (1/I(1, 1)) * moments(1) + (1/I(1, 1)) * Lc;
+    var_dot(11) = ((I(3, 3)-I(1, 1))/(I(2, 2))) * var(10)*var(12) + (1/I(2, 2)) * moments(2) + (1/I(2, 2)) * Mc;
+    var_dot(12) = ((I(1, 1)-I(2, 2))/(I(3, 3))) * var(10)*var(11) + (1/I(3, 3)) * moments(3) + (1/I(3, 3)) * Nc;
+    var_dot = var_dot';
+end
