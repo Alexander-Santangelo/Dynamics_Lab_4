@@ -1,0 +1,76 @@
+function var_dot = UpdatedQuadrotorEOM_Linearized(t, var, g, m, I)
+    % Var(x, y, z, phi, theta, si, u, v, w, p, q, r)
+    
+    x = var(1); y = var(2); z = var(3);
+    roll = var(4); pitch = var(5); yaw = var(6);
+    u = var(7); v = var(8); w = var(9);
+    p = var(10); q = var(11); r = var(12);
+
+    % Decomposing I
+    Ix = I(1,1);  
+    Iy = I(2,2); 
+    Iz = I(3,3); 
+    
+    % Decomposing Control Moments 
+    [Fc, Gc] = InnerLoopFeedback(var);
+    Lc = Gc(1); Mc = Gc(2); Nc = Gc(3); Zc = Fc(3);
+
+   A_Q_long = [0, 1, 0, 0;
+                0, 0, -g, 0;
+                0, 0, 0, 1;
+                0,  0, 0, 0];
+    A_Q_lat = [0, 1, 0, 0;
+               0, 0, g, 0;
+               0, 0, 0, 1;
+               0,  0, 0, 0];
+    A_Q_vert = [0, 1;
+                0, 0];
+    A_Q_spin = [0, 1;
+                0, 0];
+
+    % B Matrices
+    B_Q_long = [0;
+                0;
+                0;
+                1/Iy];
+    B_Q_lat = [0;
+               0;
+               0;
+               1/Ix];
+    B_Q_vert = [0;
+                1/m];
+    B_Q_spin = [0;
+                1/Iz];
+
+    long = A_Q_long * [x; u; pitch; q] + B_Q_long * Mc;
+    lat = A_Q_lat * [y; v; roll; p] + B_Q_lat * Lc;
+    vert = A_Q_vert * [z; w];
+    spin = A_Q_spin * [yaw; r] + B_Q_spin * Nc;
+
+    var_dot = [long(1);
+               lat(1);
+               vert(1);
+               lat(3);
+               long(3);
+               spin(1);
+               long(2);
+               lat(2);
+               vert(2);
+               lat(4);
+               long(4);
+               spin(2)];
+    end
+
+function [Fc, Gc] = InnerLoopFeedback(var)
+    phi = var(4); theta = var(5);
+    p = var(10); q = var(11); r = var(12);
+  
+    Mc = -(0.000864 * q + 0.00144 * theta);
+    Lc = -(0.000696 * p + 0.00116 * phi);
+    Nc = -0.004*r;
+    Zc = -0.068*9.81;
+
+    Fc = [0; 0; Zc];
+    Gc = [Lc; Mc; Nc];
+    
+end
