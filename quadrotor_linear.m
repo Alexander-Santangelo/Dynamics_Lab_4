@@ -46,22 +46,32 @@ g = 9.81; % gravity (m/s^2)
 % title('Quadrotor Position')
 % axis equal
 
+% Calculate trim angle values
 
 
-
-
-% Initial state: hover at origin, zero velocities and angles
+% Initial state
 var0 = zeros(12,1);
-var0(1:3) = 0;            % pn, pe, pd
-%var0(4:6) = 0;            % u, v, w
+var0(1:3) = 0;
 var0(4:6) = [0; 5; 0];
-%var0(7:9) = 0;            % phi, theta, psi
-var0(7:9) = deg2rad([0; 0; 0]);
-var0(10:12) = 0;          % p, q, r
+var0(10:12) = 0;
 
-% 5m/s trim motor forces
+% Drag at 5 m/s
+V_trim = var0(4:6);
+F_drag = -nu * norm(V_trim) * V_trim;
+D = norm(F_drag);
 
-motor_forces = m*g/(4*cos(var0(8))) * [1; 1; 1; 1];
+% Trim angles for constant 5 m/s lateral/east motion
+phi_trim = -atan2(D, m*g);
+theta_trim = 0;
+psi_trim = 0;
+
+var0(7:9) = [phi_trim; theta_trim; psi_trim];
+
+% Total thrust needed to balance both weight and drag
+T_trim = sqrt((m*g)^2 + D^2);
+
+% Equal motor forces for trim
+motor_forces = (T_trim/4) * [1; 1; 1; 1];
 
 opts = odeset('RelTol',1e-6,'AbsTol',1e-8);
 tspan = [0 10];
@@ -75,19 +85,6 @@ y2_plot = [y2(:,1:3), y2(:,4:6), (y2(:,7:9)), y2(:,10:12)];
 
 % Control Plot
 PlotAircraftSim(t2, y2_plot,  1:6, 'b-');
-
-
-% % Plot position over time (N,E,D)
-% figure;
-% plot3(y(:,1), y(:,2), y(:,3), 'LineWidth', 1.5);
-% grid on;
-% xlabel('North (m)');
-% ylabel('East (m)');
-% zlabel('Down (m)');
-% title('Quadrotor Position (@5m/s trim)');
-% axis equal;
-
-
 
 %% Figures & Functions
 function PlotAircraftSim(time, aircraft_state_array, fig, col)
