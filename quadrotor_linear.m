@@ -46,36 +46,205 @@ g = 9.81; % gravity (m/s^2)
 % title('Quadrotor Position')
 % axis equal
 
-% Hover motor forces
-f_hover = m * g / 4;
-motor_forces = f_hover * zeros(4,1);
+
+
 
 
 % Initial state: hover at origin, zero velocities and angles
 var0 = zeros(12,1);
 var0(1:3) = 0;            % pn, pe, pd
-var0(4:6) = 0;            % u, v, w
-var0(7:9) = 0;            % phi, theta, psi
+%var0(4:6) = 0;            % u, v, w
+var0(4:6) = [0; 5; 0];
+%var0(7:9) = 0;            % phi, theta, psi
+var0(7:9) = deg2rad([0; 0; 0]);
 var0(10:12) = 0;          % p, q, r
+
+% 5m/s trim motor forces
+
+motor_forces = m*g/(4*cos(var0(8))) * [1; 1; 1; 1];
 
 opts = odeset('RelTol',1e-6,'AbsTol',1e-8);
 tspan = [0 10];
 
 odefun = @(t,var) QuadrotorEOM(t, var, g, m, I, d, km, nu, mu, motor_forces);
 
-[t, y] = ode45(odefun, tspan, var0, opts);
+[t2, y2] = ode45(odefun, tspan, var0, opts);
 
-% Plot position over time (N,E,D)
-figure;
-plot3(y(:,1), y(:,2), y(:,3), 'LineWidth', 1.5);
-grid on;
-xlabel('North (m)');
-ylabel('East (m)');
-zlabel('Down (m)');
-title('Quadrotor Position (Hover)');
-axis equal;
+% Motion plot
+y2_plot = [y2(:,1:3), y2(:,4:6), (y2(:,7:9)), y2(:,10:12)];
 
-%%
+% Control Plot
+PlotAircraftSim(t2, y2_plot,  1:6, 'b-');
+
+
+% % Plot position over time (N,E,D)
+% figure;
+% plot3(y(:,1), y(:,2), y(:,3), 'LineWidth', 1.5);
+% grid on;
+% xlabel('North (m)');
+% ylabel('East (m)');
+% zlabel('Down (m)');
+% title('Quadrotor Position (@5m/s trim)');
+% axis equal;
+
+
+
+%% Figures & Functions
+function PlotAircraftSim(time, aircraft_state_array, fig, col)
+
+n = length(time);
+
+% inertial position
+figure(fig(1));
+clf;
+
+subplot(3,1,1);
+plot(time, aircraft_state_array(:,1), col, 'LineWidth', 1.2);
+grid on
+ylabel('x_E (m)');
+xlabel('Time (s)');
+title('Inertial Position vs Time');
+
+subplot(3,1,2);
+plot(time, aircraft_state_array(:,2), col, 'LineWidth', 1.2);
+grid on
+ylabel('y_E (m)');
+xlabel('Time (s)');
+
+subplot(3,1,3);
+plot(time, -aircraft_state_array(:,3), col, 'LineWidth', 1.2);
+grid on
+ylabel('z_E (m)');
+xlabel('Time (s)');
+
+
+% Euler angles
+figure(fig(2));
+clf;
+
+subplot(3,1,1);
+plot(time, aircraft_state_array(:,7)*180/pi, col, 'LineWidth', 1.2);
+grid on
+ylabel('\phi (deg)');
+xlabel('Time (s)');
+title('Euler Angles vs Time');
+
+subplot(3,1,2);
+plot(time, aircraft_state_array(:,8)*180/pi, col, 'LineWidth', 1.2);
+grid on
+ylabel('\theta (deg)');
+xlabel('Time (s)');
+
+subplot(3,1,3);
+plot(time, aircraft_state_array(:,9)*180/pi, col, 'LineWidth', 1.2);
+grid on
+ylabel('\psi (deg)');
+xlabel('Time (s)');
+
+
+% body velocity
+figure(fig(3));
+clf;
+
+subplot(3,1,1);
+plot(time, aircraft_state_array(:,4), col, 'LineWidth', 1.2);
+grid on
+ylabel('u (m/s)');
+xlabel('Time (s)');
+title('Body Velocity vs Time');
+
+subplot(3,1,2);
+plot(time, aircraft_state_array(:,5), col, 'LineWidth', 1.2);
+grid on
+ylabel('v (m/s)');
+xlabel('Time (s)');
+
+subplot(3,1,3);
+plot(time, aircraft_state_array(:,6), col, 'LineWidth', 1.2);
+grid on
+ylabel('w (m/s)');
+xlabel('Time (s)');
+
+
+% angular velocity
+figure(fig(4)); clf;
+
+subplot(3,1,1);
+plot(time, aircraft_state_array(:,10), col, 'LineWidth', 1.2);
+grid on
+ylabel('p (rad/s)');
+xlabel('Time (s)');
+title('Angular Velocity vs Time');
+
+subplot(3,1,2);
+plot(time, aircraft_state_array(:,11), col, 'LineWidth', 1.2);
+grid on
+ylabel('q (rad/s)');
+xlabel('Time (s)');
+
+subplot(3,1,3);
+plot(time, aircraft_state_array(:,12), col, 'LineWidth', 1.2);
+grid on
+ylabel('r (rad/s)');
+xlabel('Time (s)');
+
+
+% 3D path
+figure(fig(6));
+clf;
+
+z_up = -aircraft_state_array(:,3);
+
+plot3(aircraft_state_array(:,1), aircraft_state_array(:,2), z_up, col, 'LineWidth', 1.2);
+hold on
+plot3(aircraft_state_array(1,1), aircraft_state_array(1,2), z_up(1), 'g*');
+plot3(aircraft_state_array(n,1), aircraft_state_array(n,2), z_up(n), 'r*');
+grid on
+title('3D Path')
+xlabel('x_E (m)');
+ylabel('y_E (m)');
+zlabel('z_E (m)');
+
+% % Control Inputs
+% figure(fig(7));
+% clf;
+% % Plot Control Inputs Zc, Lc, Mc, Nc
+% subplot(4,1,1);
+% plot(time, control_input_array(:,1), col, 'LineWidth', 1.2);
+% grid on
+% ylabel('Z_c (N)');
+% title('Control Inputs vs Time');
+% 
+% subplot(4,1,2);
+% plot(time, control_input_array(:,2), col, 'LineWidth', 1.2);
+% grid on
+% ylabel('L_c (N*m)');
+% 
+% subplot(4,1,3);
+% plot(time, control_input_array(:,3), col, 'LineWidth', 1.2);
+% grid on
+% ylabel('M_c (N*m)');
+% 
+% subplot(4,1,4);
+% plot(time, control_input_array(:,4), col, 'LineWidth', 1.2);
+% grid on
+% ylabel('N_c (N*m)');
+% xlabel('Time (s)');
+
+% Auto Save Figures
+save_folder = 'C:\Users\Xander\OneDrive\Homework\Junior_second_sem\Dynamics\Dynamics_Lab\Lab4\figures';
+
+names = {'1.4_position','1.4_euler','1.4_velocity','1.4_angular','1.4_path'};
+fig_ids = [fig(1), fig(2), fig(3), fig(4), fig(6)];
+
+for i = 1:length(fig_ids)
+    figure(fig_ids(i));
+    filename = fullfile(save_folder, sprintf('%s_%s.png', names{i}, col(1)));
+    saveas(gcf, filename);
+end
+
+end
+
 function var_dot = QuadrotorEOM(t, var, g, m, I, d, km, nu, mu, motor_forces)
 
 % Unpack state vector in 12 state variablees
@@ -99,7 +268,7 @@ r = var(12);
 
 
 % DCM to Inertial (NED)
-
+%R_B2I = angle2dcm(psi, theta, phi, 'ZYX');
 R_B2I = angle2dcm(phi, theta, psi, 'XYZ');
 % Translational Position rates (velocity to inertial frame)
 vel_body = [u; v; w];
